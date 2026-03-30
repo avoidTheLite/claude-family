@@ -1,6 +1,3 @@
-# claude-family
-A framework for building named, personality-driven AI agents using the Vibe-Responsibility pattern. Built on Claude. Inspired by a Vermont maple farm.
-
 # Claude Family of Agents
 
 > A framework for building named, personality-driven AI agents using the **Vibe-Responsibility** pattern. Built on Claude. Inspired by a Vermont maple farm.
@@ -115,6 +112,8 @@ Joan Claude is the most technically rigorous member of the family. She provides 
 ---
 
 ## Agent Identity and Persistence
+
+**Note:** The concept of agents naming themselves will need revision as it predates the 'Vibe-Responsibility' pattern where agents are spun up based on need. Perhaps it's a first time setup thing. Or maybe it's better for a separate science project. 
 
 Agents choose their own names. The choice is recorded in a git commit. That commit is the agent's identity on record.
 
