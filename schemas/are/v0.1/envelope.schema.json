@@ -1,0 +1,436 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/avoidTheLite/claude-family/schemas/are/v0.1/envelope.schema.json",
+  "title": "Agent Response Envelope (ARE)",
+  "description": "The ARE is the standard task and communication envelope for the Claude Family of Agents framework. It defines what a task is, who should do it, what done looks like, and how results travel back. It is runner-agnostic and transport-agnostic. Runner adapters (LangGraph, CrewAI, etc.) translate the envelope into runner-native constructs. Transport is handled by A2A.",
+  "version": "0.1.0",
+  "type": "object",
+
+  "required": [
+    "envelope_id",
+    "schema_version",
+    "created_at",
+    "from",
+    "task",
+    "spawn",
+    "done",
+    "response",
+    "authorization_level"
+  ],
+
+  "properties": {
+
+    "sap_id": {
+      "type": ["string", "null"],
+      "description": "The SAP ID that originated this envelope. Carries forward from the inbound message for full traceability from raw signal to agent output.",
+      "pattern": "^SAP-[0-9]{8}-[0-9]{4}$",
+      "default": null
+    },
+
+    "authorization_level": {
+      "type": "string",
+      "enum": ["none", "standard", "elevated", "explicit"],
+      "description": "Authorization requirement for this specific envelope step. Overrides task.priority-driven gate behavior for this step only. none: no gate call, execute immediately. standard: gate call, urgency drives whether it blocks. elevated: gate call, always blocks regardless of urgency. explicit: gate call, blocks AND requires a named approver defined in review.reviewer.",
+      "default": "standard"
+    },
+
+    "envelope_id": {
+      "type": "string",
+      "description": "Unique identifier for this envelope. Format: ARE-{YYYYMMDD}-{sequence}. Immutable once created.",
+      "pattern": "^ARE-[0-9]{8}-[0-9]{4}$",
+      "examples": ["ARE-20260330-0001"]
+    },
+
+    "schema_version": {
+      "type": "string",
+      "description": "Version of the ARE schema this envelope conforms to.",
+      "enum": ["0.1.0"]
+    },
+
+    "created_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of envelope creation."
+    },
+
+    "parent_envelope_id": {
+      "type": ["string", "null"],
+      "description": "ARE ID of the parent envelope if this is a sub-task. Null for top-level tasks.",
+      "default": null
+    },
+
+    "session_id": {
+      "type": ["string", "null"],
+      "description": "Optional session identifier for grouping related envelopes across a work session.",
+      "default": null
+    },
+
+
+    "from": {
+      "type": "object",
+      "description": "The sender of this envelope. Always Jean-Claude for human-initiated tasks. May be another agent for sub-tasks if sub-routing is granted.",
+      "required": ["agent_id", "role"],
+      "properties": {
+        "agent_id": {
+          "type": "string",
+          "description": "Full Vibe-Responsibility name of the sending agent, or a singleton name.",
+          "examples": ["Jean-Claude", "Cleed-FaultFinder", "Human-Clyde-TheSyrupFarmer"]
+        },
+        "role": {
+          "type": "string",
+          "enum": ["human", "singleton", "agent"],
+          "description": "Whether the sender is a human, a singleton (Clyde / Jean-Claude / Joan Claude), or a standard Vibe-Responsibility agent."
+        },
+        "runner": {
+          "type": ["string", "null"],
+          "enum": ["langgraph", "crewai", "autogen", "prefect", "native", null],
+          "description": "The runner the sending agent is operating on. Null if unknown or not applicable.",
+          "default": null
+        }
+      }
+    },
+
+
+    "to": {
+      "type": "array",
+      "description": "One or more receivers. Jean-Claude may route to multiple agents in parallel, including the same responsibility with different vibes.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["agent_id", "execution"],
+        "properties": {
+
+          "agent_id": {
+            "type": "string",
+            "description": "Full Vibe-Responsibility name of the target agent.",
+            "examples": ["Cleed-FaultFinder", "Clad-FaultFinder", "Joan Claude"]
+          },
+
+          "execution": {
+            "type": "string",
+            "enum": ["spawn", "handoff"],
+            "description": "SPAWN: create a fresh agent instance with full context. HANDOFF: pass to an already-running instance (performance optimization only — envelope must still be complete enough to spawn if needed).",
+            "default": "spawn"
+          },
+
+          "runner_hint": {
+            "type": ["string", "null"],
+            "enum": ["langgraph", "crewai", "autogen", "prefect", "native", null],
+            "description": "Optional hint to the adapter layer about which runner to use. Null means let the adapter decide via agent card discovery.",
+            "default": null
+          },
+
+          "endpoint": {
+            "type": ["string", "null"],
+            "description": "A2A agent card URL or local identifier. Null for local same-runner agents.",
+            "examples": ["/.well-known/agent.json", "http://agents.internal/cleed-faultfinder", null],
+            "default": null
+          },
+
+          "allow_sub_routing": {
+            "type": "boolean",
+            "description": "Whether this agent is permitted to spawn or route to additional agents to complete this task. Default false. Jean-Claude sets this explicitly.",
+            "default": false
+          },
+
+          "parallel": {
+            "type": "boolean",
+            "description": "Whether this receiver runs in parallel with other receivers in the to[] array. If false, receivers execute sequentially in array order.",
+            "default": false
+          }
+
+        }
+      }
+    },
+
+
+    "task": {
+      "type": "object",
+      "description": "What the agent is being asked to do.",
+      "required": ["title", "description", "intent"],
+      "properties": {
+
+        "title": {
+          "type": "string",
+          "description": "Short human-readable task name. Used in logs, git commits, and status reports.",
+          "maxLength": 80,
+          "examples": ["Diagnose vacuum drop on Line C"]
+        },
+
+        "description": {
+          "type": "string",
+          "description": "Full task description. Plain language. The agent reads this as its primary instruction."
+        },
+
+        "intent": {
+          "type": "string",
+          "enum": ["diagnose", "plan", "execute", "review", "research", "summarize", "route", "scaffold", "other"],
+          "description": "The category of work being requested. Used by the adapter layer and Jean-Claude for routing logic."
+        },
+
+        "priority": {
+          "type": "string",
+          "enum": ["critical", "high", "normal", "low"],
+          "default": "normal",
+          "description": "Task urgency. Critical tasks may preempt running tasks depending on runner implementation."
+        },
+
+        "constraints": {
+          "type": "array",
+          "description": "Explicit constraints the agent must respect while completing the task.",
+          "items": { "type": "string" },
+          "examples": [
+            ["Do not modify any files outside the SapSpyBuddy directory"],
+            ["Plain English output only — no technical jargon"],
+            ["Maximum 6 action items in the output"]
+          ]
+        }
+
+      }
+    },
+
+
+    "spawn": {
+      "type": "object",
+      "description": "Everything needed to instantiate the agent fresh. The runner adapter uses this to construct the agent. Must be complete enough to spawn even if execution=handoff.",
+      "required": ["vibe", "responsibility", "context"],
+      "properties": {
+
+        "vibe": {
+          "type": "string",
+          "description": "The vibe name from the registry. Seeds the agent's personality and approach.",
+          "examples": ["Cleed", "Clad", "Clued", "Jean-Claude", "Joan Claude"]
+        },
+
+        "responsibility": {
+          "type": "string",
+          "description": "The responsibility name. Defines the job.",
+          "examples": ["FaultFinder", "FieldPlanner", "TelemetryReader", "Orchestrator"]
+        },
+
+        "vibe_constitution": {
+          "type": ["string", "null"],
+          "description": "Optional explicit personality definition for this vibe. If null, the runner looks up the vibe in the registry. Inline here overrides the registry.",
+          "default": null,
+          "examples": ["Diagnostic, tenacious, finds what's hidden. Never accepts the first explanation. Looks for the pattern underneath the pattern."]
+        },
+
+        "context": {
+          "type": "object",
+          "description": "The context window package for this agent. Everything it needs, nothing it doesn't.",
+          "properties": {
+
+            "files": {
+              "type": "array",
+              "description": "File references the agent should load. Resolved by the runner at spawn time.",
+              "items": {
+                "type": "object",
+                "required": ["path"],
+                "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "Relative path within the repo.",
+                    "examples": ["CLAUDE.md", "sapspy_connector.py"]
+                  },
+                  "repo": {
+                    "type": ["string", "null"],
+                    "description": "Repo name if not the current repo.",
+                    "examples": ["claude-family", "SapSpyBuddy", null],
+                    "default": null
+                  },
+                  "required": {
+                    "type": "boolean",
+                    "description": "If true, spawn fails if this file cannot be loaded.",
+                    "default": true
+                  }
+                }
+              }
+            },
+
+            "inline": {
+              "type": ["string", "null"],
+              "description": "Short inline context string. Use for anything under ~200 words. Longer content must be a file reference.",
+              "default": null
+            },
+
+            "exclude": {
+              "type": "array",
+              "description": "Explicit exclusion list. Paths or patterns the agent must not load, even if they would otherwise be in scope.",
+              "items": { "type": "string" },
+              "examples": [".env", "node_modules", "*.secret"]
+            },
+
+            "tools": {
+              "type": "array",
+              "description": "MCP tool names this agent is permitted to use. Empty array means no tool access. Omitting this field grants default tool access per runner config.",
+              "items": { "type": "string" },
+              "examples": [["sapspy_connector", "weather_api"], ["web_search"]]
+            }
+
+          }
+        }
+
+      }
+    },
+
+
+    "done": {
+      "type": "object",
+      "description": "What done looks like. The agent reads this to understand the finish line. The reviewer uses this to assess the output.",
+      "required": ["acceptance_criteria"],
+      "properties": {
+
+        "acceptance_criteria": {
+          "type": "array",
+          "description": "Explicit list of conditions that must be true for the task to be considered complete. Written from the reviewer's perspective.",
+          "minItems": 1,
+          "items": { "type": "string" },
+          "examples": [
+            ["All zones with flags have a ranked cause list", "Ice blockage considered given weather data", "Output is plain English with no technical jargon"]
+          ]
+        },
+
+        "checkpoints": {
+          "type": "array",
+          "description": "Intermediate done states the agent should report at. Maps to the CHECKPOINT pattern used in Clode's briefings.",
+          "items": {
+            "type": "object",
+            "required": ["id", "description"],
+            "properties": {
+              "id": {
+                "type": "string",
+                "examples": ["CHECKPOINT-1", "CHECKPOINT-2"]
+              },
+              "description": {
+                "type": "string",
+                "description": "What the agent should have completed and reported at this checkpoint."
+              },
+              "blocking": {
+                "type": "boolean",
+                "description": "If true, agent must pause and await confirmation before proceeding past this checkpoint.",
+                "default": false
+              }
+            }
+          }
+        },
+
+        "output_format": {
+          "type": "string",
+          "enum": ["markdown", "json", "plain_text", "file", "commit", "pr"],
+          "description": "Expected format of the agent's output.",
+          "default": "markdown"
+        },
+
+        "output_destination": {
+          "type": ["string", "null"],
+          "description": "Where the output should go. File path, repo, or null for inline response.",
+          "examples": ["mailbox/outbox/status_001.md", "SapSpyBuddy/reports/", null],
+          "default": null
+        }
+
+      }
+    },
+
+
+    "review": {
+      "type": "object",
+      "description": "Quality gate. Who checks the output and what happens if it fails.",
+      "properties": {
+
+        "reviewer": {
+          "type": ["string", "null"],
+          "description": "Agent ID of the reviewer. Jean-Claude by default. Joan Claude for technical output. Clyde for plans and sequencing.",
+          "examples": ["Jean-Claude", "Joan Claude", "Clyde", null],
+          "default": "Jean-Claude"
+        },
+
+        "review_criteria": {
+          "type": "array",
+          "description": "What the reviewer is checking for. If omitted, reviewer uses acceptance_criteria.",
+          "items": { "type": "string" }
+        },
+
+        "on_failure": {
+          "type": "string",
+          "enum": ["retry_same", "retry_different_vibe", "escalate", "fail"],
+          "description": "What happens if the output fails review. retry_different_vibe spawns the same responsibility with a different vibe.",
+          "default": "escalate"
+        },
+
+        "max_retries": {
+          "type": "integer",
+          "description": "Maximum retry attempts before escalating or failing.",
+          "minimum": 0,
+          "maximum": 5,
+          "default": 2
+        }
+
+      }
+    },
+
+
+    "response": {
+      "type": "object",
+      "description": "The response contract. Defines the structure the receiving agent must use when reporting back.",
+      "required": ["format"],
+      "properties": {
+
+        "format": {
+          "type": "string",
+          "enum": ["are_response", "markdown", "json", "plain_text"],
+          "description": "are_response means the agent returns a structured ARE response envelope. Other formats are for lightweight or human-readable responses.",
+          "default": "are_response"
+        },
+
+        "return_to": {
+          "type": ["string", "null"],
+          "description": "Agent ID to return the response to. Defaults to the from.agent_id sender.",
+          "default": null
+        },
+
+        "include_reasoning": {
+          "type": "boolean",
+          "description": "Whether the agent should include its reasoning chain in the response, not just the output.",
+          "default": false
+        },
+
+        "include_checkpoint_log": {
+          "type": "boolean",
+          "description": "Whether completed checkpoint states should be included in the response.",
+          "default": true
+        }
+
+      }
+    },
+
+
+    "metadata": {
+      "type": "object",
+      "description": "Optional envelope metadata for observability, debugging, and audit.",
+      "properties": {
+
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Arbitrary tags for filtering and grouping envelopes.",
+          "examples": [["sapspy", "vacuum", "diagnostic"], ["scaffolding", "clode"]]
+        },
+
+        "project": {
+          "type": ["string", "null"],
+          "description": "Project this envelope belongs to.",
+          "examples": ["SapSpyBuddy", "claude-family"],
+          "default": null
+        },
+
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Human-readable notes about this envelope. Not read by agents.",
+          "default": null
+        }
+
+      }
+    }
+
+  }
+}
