@@ -1,0 +1,330 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/avoidTheLite/claude-family/schemas/sap/v0.1/sap.schema.json",
+  "title": "Signal Assessment Payload (SAP)",
+  "description": "The SAP is the intake format for Jean-Claude. It normalizes all inbound signals — human messages, monitoring alerts, scheduled triggers, agent escalations, and external webhooks — into a single consistent structure that Jean-Claude can assess and translate into an ARE envelope. The SAP is not the task definition. It is the raw signal before Jean-Claude interprets it. Jean-Claude reads the SAP, runs task_assess, builds the ARE envelope, and routes. Humans and external systems never interact with the ARE format directly.",
+  "version": "0.1.0",
+  "type": "object",
+
+  "required": [
+    "sap_id",
+    "schema_version",
+    "received_at",
+    "source",
+    "payload",
+    "responsibility_candidates",
+    "vibe_candidates",
+    "llm_confidence",
+    "llm_reasoning",
+    "approval"
+  ],
+
+  "properties": {
+
+    "sap_id": {
+      "type": "string",
+      "description": "Unique identifier for this inbound message. Format: SAP-{YYYYMMDD}-{sequence}. Immutable once created. Carried forward into the ARE envelope for traceability.",
+      "pattern": "^SAP-[0-9]{8}-[0-9]{4}$",
+      "examples": ["SAP-[0-9]0260330-0001"]
+    },
+
+    "schema_version": {
+      "type": "string",
+      "description": "Version of the SAP schema this message conforms to.",
+      "enum": ["0.1.0"]
+    },
+
+    "received_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "ISO 8601 timestamp of when Jean-Claude received this message."
+    },
+
+    "session_id": {
+      "type": ["string", "null"],
+      "description": "Optional session identifier for grouping related messages across a work session. Carried forward into the ARE envelope.",
+      "default": null
+    },
+
+
+    "source": {
+      "type": "object",
+      "description": "Where this message came from. Jean-Claude uses this to understand context and adjust how he interprets the payload.",
+      "required": ["source_type", "sender_id"],
+      "properties": {
+
+        "source_type": {
+          "type": "string",
+          "enum": ["human", "monitoring", "agent", "scheduled", "webhook"],
+          "description": "The category of inbound source. human: a person typed or spoke a message. monitoring: a sensor or alerting system fired. agent: another agent escalated to Jean-Claude. scheduled: a cron-like trigger with no human involved. webhook: an external system POSTed an event."
+        },
+
+        "sender_id": {
+          "type": "string",
+          "description": "Identifier of the sender. For humans, use the Cl+vowel+D convention where applicable. For monitoring systems, use the system name. For agents, use their full Vibe-Responsibility name.",
+          "examples": [
+            "Human-Clyde-TheSyrupFarmer",
+            "SapSpy-VacuumMonitor",
+            "Cleed-FaultFinder",
+            "cron-morning-diagnostic",
+            "webhook-sapspy-alert"
+          ]
+        },
+
+        "channel": {
+          "type": ["string", "null"],
+          "description": "The channel this message arrived on. Voice input must be preprocessed to text before reaching Jean-Claude — this field indicates that preprocessing has occurred.",
+          "enum": ["text", "voice_preprocessed", "sms", "dashboard", "webhook", "api", "scheduled", null],
+          "default": null
+        },
+
+        "preprocessed": {
+          "type": "boolean",
+          "description": "Whether the payload has been preprocessed before reaching Jean-Claude. Must be true for voice input. Jean-Claude will reject raw audio.",
+          "default": false
+        }
+
+      }
+    },
+
+
+    "payload": {
+      "type": "object",
+      "description": "The actual message content. Shape varies by source_type. Jean-Claude normalizes this into an ARE envelope via task_assess.",
+      "required": ["raw"],
+      "properties": {
+
+        "raw": {
+          "type": ["string", "object"],
+          "description": "The raw message content. For human and voice_preprocessed sources this is a string. For monitoring, webhook, and scheduled sources this may be a structured object."
+        },
+
+        "structured": {
+          "type": ["object", "null"],
+          "description": "Optional pre-parsed structured version of the raw payload. Provided by the upstream system if available. Jean-Claude will use this in preference to parsing raw.",
+          "default": null,
+          "examples": [
+            {
+              "zone": "C",
+              "flag": "CRITICAL_VACUUM_DROP",
+              "vacuum_inHg": 18.3,
+              "target_inHg": 26.0,
+              "delta": -7.7,
+              "timestamp": "2026-03-30T07:42:00-05:00"
+            }
+          ]
+        },
+
+        "language": {
+          "type": ["string", "null"],
+          "description": "BCP 47 language code for human-sourced messages. Relevant for multilingual deployments.",
+          "default": "en",
+          "examples": ["en", "fr", "fr-CA"]
+        },
+
+        "attachments": {
+          "type": "array",
+          "description": "File references or URLs attached to this message. Jean-Claude may include these as context file references in the ARE envelope.",
+          "items": {
+            "type": "object",
+            "required": ["type", "reference"],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["file", "url", "repo_path"],
+                "description": "How to resolve this attachment."
+              },
+              "reference": {
+                "type": "string",
+                "description": "Path, URL, or repo-relative path to the attachment."
+              },
+              "description": {
+                "type": ["string", "null"],
+                "description": "Human-readable description of what this attachment contains.",
+                "default": null
+              }
+            }
+          }
+        }
+
+      }
+    },
+
+
+    "urgency": {
+      "type": "string",
+      "enum": ["critical", "high", "normal", "low"],
+      "description": "The urgency of this inbound signal. Drives default approval gate behavior across all steps in the resulting ARE envelope. critical and high: approval gates are non-blocking by default — the gate service is called but Jean-Claude does not wait for a response before proceeding, unless a specific step carries authorization_level: elevated or explicit. normal and low: approval gates are blocking by default. This field maps to task.priority in the resulting ARE envelope.",
+      "default": "normal"
+    },
+
+
+    "responsibility_candidates": {
+      "type": "array",
+      "description": "Deterministic routing output: one or more responsibility candidates selected from routing rules using signal_type x product_id.",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "examples": [["FaultFinder"], ["FaultFinder", "TelemetryReader"]]
+    },
+
+
+    "vibe_candidates": {
+      "type": "array",
+      "description": "Candidate vibes proposed from roster defaults for the selected responsibilities. Jean-Claude confirms or overrides during finalization.",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "examples": [["Cleed"], ["Clad", "Clide"]]
+    },
+
+
+    "llm_confidence": {
+      "type": "string",
+      "enum": ["clear", "ambiguous", "unknown"],
+      "description": "Advisory confidence score from Joan-clode over the deterministic routing result. This score informs Jean-Claude finalization and does not dispatch work by itself."
+    },
+
+
+    "llm_reasoning": {
+      "type": "string",
+      "description": "Short rationale from Joan-clode explaining confidence and risk factors in the deterministic assignment. This is a concise decision note, not chain-of-thought."
+    },
+
+
+    "approval": {
+      "type": "object",
+      "description": "Approval configuration for this message. Controls how Jean-Claude interacts with the approval gate service for both intent and envelope checks.",
+      "required": ["intent", "envelope"],
+      "properties": {
+
+        "intent": {
+          "type": "object",
+          "description": "Controls approval of Jean-Claude's interpretation of the message — does the sender agree with how Jean-Claude understood and plans to route this task?",
+          "required": ["mode"],
+          "properties": {
+
+            "mode": {
+              "type": "string",
+              "enum": ["none", "service"],
+              "description": "none: Jean-Claude proceeds without an intent approval check. service: Jean-Claude calls the approval gate service with his task assessment before building the ARE envelope. The service response may include envelope_hints that Jean-Claude embeds in the ARE.",
+              "default": "none"
+            },
+
+            "service_endpoint": {
+              "type": ["string", "null"],
+              "description": "Approval gate service endpoint URL. Required if mode is service.",
+              "default": null
+            },
+
+            "timeout_seconds": {
+              "type": ["integer", "null"],
+              "description": "How long Jean-Claude waits for an intent approval response before falling back to urgency-driven behavior.",
+              "default": 30
+            }
+
+          }
+        },
+
+        "envelope": {
+          "type": "object",
+          "description": "Controls approval of the specific ARE envelope Jean-Claude built — does an approver agree with the exact routing, agents, and context Jean-Claude composed?",
+          "required": ["mode"],
+          "properties": {
+
+            "mode": {
+              "type": "string",
+              "enum": ["none", "service"],
+              "description": "none: Jean-Claude routes without an envelope approval check. service: Jean-Claude submits the completed ARE envelope to the approval gate service before routing to agents.",
+              "default": "none"
+            },
+
+            "service_endpoint": {
+              "type": ["string", "null"],
+              "description": "Approval gate service endpoint URL. May be the same service as intent approval or different. If same service, the gate receives both calls and can use intent approval context when evaluating the envelope.",
+              "default": null
+            },
+
+            "timeout_seconds": {
+              "type": ["integer", "null"],
+              "description": "How long Jean-Claude waits for an envelope approval response.",
+              "default": 60
+            }
+
+          }
+        }
+
+      }
+    },
+
+
+    "context_hints": {
+      "type": "object",
+      "description": "Optional hints from the sender to guide Jean-Claude's task assessment and envelope composition. Jean-Claude may use or override these.",
+      "properties": {
+
+        "suggested_intent": {
+          "type": ["string", "null"],
+          "description": "Sender's suggestion for the task intent type. Jean-Claude validates this against his own assessment.",
+          "enum": ["diagnose", "plan", "execute", "review", "research", "summarize", "route", "scaffold", "other", null],
+          "default": null
+        },
+
+        "suggested_vibes": {
+          "type": "array",
+          "description": "Sender's suggestion for which vibes to consider. Jean-Claude may use, override, or expand this list.",
+          "items": { "type": "string" },
+          "examples": [["Cleed", "Clad"], ["Clued"]]
+        },
+
+        "suggested_responsibilities": {
+          "type": "array",
+          "description": "Sender's suggestion for which responsibilities to assign.",
+          "items": { "type": "string" },
+          "examples": [["FaultFinder"], ["TelemetryReader", "FaultFinder"]]
+        },
+
+        "project": {
+          "type": ["string", "null"],
+          "description": "Project context hint. Helps Jean-Claude scope context file loading.",
+          "examples": ["SapSpyBuddy", "claude-family"],
+          "default": null
+        },
+
+        "notify_on_complete": {
+          "type": "boolean",
+          "description": "Whether the sender wants a notification when the resulting task completes.",
+          "default": false
+        },
+
+        "notify_channel": {
+          "type": ["string", "null"],
+          "description": "Channel to send completion notification on. Only relevant if notify_on_complete is true.",
+          "enum": ["sms", "email", "webhook", "dashboard", null],
+          "default": null
+        }
+
+      }
+    },
+
+
+    "metadata": {
+      "type": "object",
+      "description": "Optional metadata for observability and audit.",
+      "properties": {
+
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" },
+          "examples": [["sapspy", "vacuum", "line-c"]]
+        },
+
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Human-readable notes. Not read by Jean-Claude.",
+          "default": null
+        }
+
+      }
+    }
+
+  }
+}

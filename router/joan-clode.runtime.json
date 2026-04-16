@@ -1,0 +1,89 @@
+{
+  "version": "0.1.0",
+  "name": "Joan-clode",
+  "resolver": "router-resolver",
+  "role": "advisory_scoring_layer",
+  "dispatch_authority": false,
+  "description": "Advisory scorer over deterministic routing output. Produces confidence and concise reasoning only. Operates as the advisory_scoring stage in resolver.runtime.json.",
+  "inputs": {
+    "required": [
+      "sap_id",
+      "signal_type",
+      "severity",
+      "user_tier",
+      "first_occurrence",
+      "responsibility_candidates",
+      "match_quality"
+    ],
+    "optional": [
+      "context_hints.suggested_responsibilities",
+      "context_hints.suggested_vibes",
+      "payload.structured",
+      "metadata.tags"
+    ]
+  },
+  "scoring_rules": [
+    {
+      "name": "single_match_clear_signal",
+      "when": {
+        "match_quality": "single",
+        "first_occurrence": false,
+        "severity_not": "critical"
+      },
+      "llm_confidence": "clear",
+      "reasoning_template": "Deterministic route has a single candidate and no novelty indicators."
+    },
+    {
+      "name": "multiple_candidates",
+      "when": {
+        "match_quality": "multiple"
+      },
+      "llm_confidence": "ambiguous",
+      "reasoning_template": "Deterministic routing produced multiple valid responsibilities. Jean-Claude finalization required."
+    },
+    {
+      "name": "no_candidate",
+      "when": {
+        "match_quality": "none"
+      },
+      "llm_confidence": "unknown",
+      "reasoning_template": "No deterministic route matched; assignment requires first-principles finalization by Jean-Claude."
+    },
+    {
+      "name": "first_occurrence_penalty",
+      "when": {
+        "first_occurrence": true,
+        "match_quality": "single"
+      },
+      "llm_confidence": "ambiguous",
+      "reasoning_template": "First occurrence lowers certainty despite a single deterministic candidate."
+    },
+    {
+      "name": "critical_bypass",
+      "when": {
+        "severity": "critical"
+      },
+      "llm_confidence": "unknown",
+      "reasoning_template": "Critical severity follows escalation bypass; scoring is advisory and non-blocking."
+    }
+  ],
+  "output_contract": {
+    "writes": [
+      "llm_confidence",
+      "llm_reasoning"
+    ],
+    "must_not_write": [
+      "target_agent",
+      "routing_finalization",
+      "authorization_level"
+    ],
+    "reasoning_max_chars": 240,
+    "reasoning_style": "concise_decision_note"
+  },
+  "guardrails": {
+    "no_dispatch": true,
+    "no_schema_mutation": true,
+    "no_agent_composition": true,
+    "escalation_is_non_blocking_for_critical": true
+  }
+}

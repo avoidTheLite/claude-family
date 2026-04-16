@@ -1,0 +1,125 @@
+{
+  "version": "0.1.0",
+  "name": "router-resolver",
+  "mode": "single_resolver",
+  "description": "Single authoritative resolver pipeline for routing SAP to ARE targets.",
+  "authoritative": true,
+  "special_agents": {
+    "jean_claude": {
+      "agent_id": "Jean-Claude",
+      "role": "final_assignment_authority",
+      "singleton": true,
+      "required_for_non_critical_dispatch": true,
+      "override_requires_rationale": true
+    }
+  },
+  "infrastructure_agents": [
+    "signal-intake",
+    "escalation-packager"
+  ],
+  "pipeline": [
+    {
+      "stage": "critical_bypass",
+      "source": "sap.urgency",
+      "if": {
+        "urgency": "critical"
+      },
+      "then": {
+        "dispatch": "escalation-packager",
+        "jean_claude_notified": true,
+        "requires_finalization_mark": false
+      }
+    },
+    {
+      "stage": "deterministic_route",
+      "source": "ROUTING.md",
+      "output": [
+        "responsibility_candidates",
+        "match_quality"
+      ]
+    },
+    {
+      "stage": "advisory_scoring",
+      "source": "joan-clode.runtime.json",
+      "output": [
+        "llm_confidence",
+        "llm_reasoning"
+      ],
+      "dispatch_authority": false
+    },
+    {
+      "stage": "vibe_proposal",
+      "source": "ROSTER.md",
+      "output": [
+        "vibe_candidates"
+      ]
+    },
+    {
+      "stage": "finalization",
+      "source": "IDENTITY.md",
+      "actor": "Jean-Claude",
+      "required_when": {
+        "urgency_not": "critical"
+      },
+      "output": [
+        "final_responsibility",
+        "final_vibe",
+        "target_agent",
+        "routing_finalization"
+      ]
+    },
+    {
+      "stage": "logging",
+      "source": "../log/ROUTING_DECISIONS.md",
+      "required_when": {
+        "urgency_not": "critical"
+      },
+      "minimum_fields": [
+        "timestamp",
+        "sap_id",
+        "responsibility_candidates",
+        "target_agent",
+        "accepted_deterministic",
+        "rationale",
+        "follow_up"
+      ]
+    }
+  ],
+  "precedence": [
+    "critical_bypass",
+    "deterministic_route",
+    "advisory_scoring",
+    "vibe_proposal",
+    "finalization",
+    "logging"
+  ],
+  "contracts": {
+    "sap_inputs_required": [
+      "sap_id",
+      "signal_type",
+      "urgency",
+      "first_occurrence"
+    ],
+    "sap_inputs_optional": [
+      "user_tier",
+      "context_hints",
+      "payload.structured",
+      "metadata.tags"
+    ],
+    "are_non_critical_requirements": {
+      "routing_finalization.finalized": true,
+      "routing_finalization.finalized_by": "Jean-Claude"
+    },
+    "are_target_agent_formats": [
+      "{Vibe}-{Responsibility}",
+      "signal-intake",
+      "escalation-packager"
+    ]
+  },
+  "guardrails": {
+    "single_resolver_only": true,
+    "no_agent_local_resolvers": true,
+    "joan_clode_cannot_dispatch": true,
+    "critical_bypass_cannot_be_overridden": true
+  }
+}

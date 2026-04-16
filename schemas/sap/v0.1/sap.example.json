@@ -1,0 +1,65 @@
+{
+  "sap_id": "SAP-20260330-0001",
+  "schema_version": "0.1.0",
+  "received_at": "2026-03-30T07:42:00-05:00",
+  "session_id": "session-flanders-morning-run",
+
+  "source": {
+    "source_type": "monitoring",
+    "sender_id": "SapSpy-VacuumMonitor",
+    "channel": "webhook",
+    "preprocessed": false
+  },
+
+  "payload": {
+    "raw": "CRITICAL_VACUUM_DROP on Zone C",
+    "structured": {
+      "zone": "C",
+      "label": "Ridge line",
+      "flag": "CRITICAL_VACUUM_DROP",
+      "vacuum_inHg": 18.3,
+      "target_inHg": 26.0,
+      "delta": -7.7,
+      "flow_lpm": 1.1,
+      "expected_flow_lpm": 7.4,
+      "volume_collected_L": 12.0,
+      "timestamp": "2026-03-30T07:42:00-05:00"
+    },
+    "language": null,
+    "attachments": []
+  },
+
+  "urgency": "critical",
+
+  "responsibility_candidates": ["FaultFinder"],
+  "vibe_candidates": ["Cleed", "Clad"],
+  "llm_confidence": "clear",
+  "llm_reasoning": "Monitoring signal is specific and maps cleanly to fault diagnosis. Candidate vibe set balances depth (Cleed) and speed (Clad).",
+
+  "approval": {
+    "intent": {
+      "mode": "none",
+      "service_endpoint": null,
+      "timeout_seconds": null
+    },
+    "envelope": {
+      "mode": "none",
+      "service_endpoint": null,
+      "timeout_seconds": null
+    }
+  },
+
+  "context_hints": {
+    "suggested_intent": "diagnose",
+    "suggested_vibes": ["Cleed", "Clad"],
+    "suggested_responsibilities": ["FaultFinder"],
+    "project": "SapSpyBuddy",
+    "notify_on_complete": true,
+    "notify_channel": "sms"
+  },
+
+  "metadata": {
+    "tags": ["sapspy", "vacuum", "line-c", "critical"],
+    "notes": "Automated alert from SapSpy webhook. No human involved in initiating this message. Jean-Claude should diagnose and notify Human-Clyde-TheSyrupFarmer via SMS on completion."
+  }
+}

@@ -1,0 +1,128 @@
+{
+  "envelope_id": "ARE-20260330-0001",
+  "schema_version": "0.1.0",
+  "created_at": "2026-03-30T07:42:00-05:00",
+  "sap_id": "SAP-20260330-0001",
+  "parent_envelope_id": null,
+  "session_id": "session-flanders-morning-run",
+  "authorization_level": "standard",
+
+  "routing_finalization": {
+    "finalized": true,
+    "finalized_by": "Jean-Claude",
+    "accepted_deterministic": true,
+    "scoring_source": "Joan-clode",
+    "scoring_confidence": "clear",
+    "rationale": "Deterministic mapping and Joan-clode scoring agree; dispatching paired FaultFinder vibes for complementary depth and speed.",
+    "finalized_at": "2026-03-30T07:42:10-05:00"
+  },
+
+  "from": {
+    "agent_id": "Jean-Claude",
+    "role": "singleton",
+    "runner": "langgraph"
+  },
+
+  "to": [
+    {
+      "agent_id": "Cleed-FaultFinder",
+      "execution": "spawn",
+      "runner_hint": "crewai",
+      "endpoint": null,
+      "allow_sub_routing": false,
+      "parallel": true
+    },
+    {
+      "agent_id": "Clad-FaultFinder",
+      "execution": "spawn",
+      "runner_hint": "crewai",
+      "endpoint": null,
+      "allow_sub_routing": false,
+      "parallel": true
+    }
+  ],
+
+  "task": {
+    "title": "Diagnose vacuum drop on Line C — Flanders Bros sugarbush",
+    "description": "Vacuum pressure on Line C dropped 7.7 inHg below target in the last reading cycle. Flow is at 15% of expected. Two other zones are nominal. Overnight low was 22F, current temp is 38F. Diagnose the most likely physical cause and rank your candidates.",
+    "intent": "diagnose",
+    "priority": "critical",
+    "constraints": [
+      "Plain English output only — no technical jargon",
+      "Consider overnight temperature in your analysis",
+      "Do not speculate beyond what the sensor data supports",
+      "Maximum 3 ranked candidates per zone"
+    ]
+  },
+
+  "spawn": {
+    "vibe": "Cleed",
+    "responsibility": "FaultFinder",
+    "vibe_constitution": "Diagnostic, tenacious, finds what's hidden. Never accepts the first explanation. Looks for the pattern underneath the pattern.",
+    "context": {
+      "files": [
+        {
+          "path": "CLAUDE.md",
+          "repo": "SapSpyBuddy",
+          "required": true
+        },
+        {
+          "path": "agent_naming_registry.md",
+          "repo": "claude-family",
+          "required": false
+        }
+      ],
+      "inline": "Zone C (Ridge line, 710 taps): vacuum 18.3 inHg (target 26.0, delta -7.7). Flow 1.1 lpm (15% of expected). Volume 12L. Flags: CRITICAL_VACUUM_DROP, LOW_FLOW, LOW_VOLUME. Pump running at 27.2 inHg. Weather: overnight low 22F, current 38F, forecast high 44F.",
+      "exclude": [".env", "*.secret", "node_modules"],
+      "tools": ["sapspy_connector", "weather_api"]
+    }
+  },
+
+  "done": {
+    "acceptance_criteria": [
+      "Top 2-3 candidate causes identified and ranked by likelihood",
+      "Each candidate includes a one-sentence rationale",
+      "Ice blockage explicitly addressed given overnight temperature",
+      "Output references specific zone and sensor data",
+      "Plain English — a retired farmer can act on this"
+    ],
+    "checkpoints": [
+      {
+        "id": "CHECKPOINT-1",
+        "description": "Confirm sensor data has been read and anomalous zones identified. Report zone summary before proceeding to diagnosis.",
+        "blocking": false
+      },
+      {
+        "id": "CHECKPOINT-2",
+        "description": "Ranked candidate causes complete. Pause for review before generating field recommendations.",
+        "blocking": true
+      }
+    ],
+    "output_format": "markdown",
+    "output_destination": "mailbox/outbox/ARE-20260330-0001-response.md"
+  },
+
+  "review": {
+    "reviewer": "Jean-Claude",
+    "review_criteria": [
+      "Candidates are physically plausible given the sensor readings",
+      "Weather data was considered",
+      "Output is actionable by a non-technical operator"
+    ],
+    "on_failure": "retry_different_vibe",
+    "max_retries": 2
+  },
+
+  "response": {
+    "format": "are_response",
+    "return_to": "Jean-Claude",
+    "include_reasoning": true,
+    "include_checkpoint_log": true
+  },
+
+  "metadata": {
+    "tags": ["sapspy", "vacuum", "diagnostic", "line-c", "critical"],
+    "project": "SapSpyBuddy",
+    "notes": "Sending to both Cleed and Clad in parallel — same responsibility, different vibes. Cleed will dig deeper, Clad will be faster. Jean-Claude synthesizes both before passing to BushworkPlanner."
+  }
+}
