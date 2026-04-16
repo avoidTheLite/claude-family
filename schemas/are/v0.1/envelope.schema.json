@@ -18,6 +18,35 @@
     "authorization_level"
   ],
 
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "task": {
+            "type": "object",
+            "required": ["priority"],
+            "properties": {
+              "priority": { "const": "critical" }
+            }
+          }
+        }
+      },
+      "then": {},
+      "else": {
+        "required": ["routing_finalization"],
+        "properties": {
+          "routing_finalization": {
+            "required": ["finalized", "finalized_by"],
+            "properties": {
+              "finalized": { "const": true },
+              "finalized_by": { "const": "Jean-Claude" }
+            }
+          }
+        }
+      }
+    }
+  ],
+
   "properties": {
 
     "sap_id": {
@@ -32,6 +61,72 @@
       "enum": ["none", "standard", "elevated", "explicit"],
       "description": "Authorization requirement for this specific envelope step. Overrides task.priority-driven gate behavior for this step only. none: no gate call, execute immediately. standard: gate call, urgency drives whether it blocks. elevated: gate call, always blocks regardless of urgency. explicit: gate call, blocks AND requires a named approver defined in review.reviewer.",
       "default": "standard"
+    },
+
+    "routing_finalization": {
+      "type": "object",
+      "description": "Jean-Claude final assignment record for non-critical work-agent dispatches. Captures whether deterministic routing was accepted or overridden after Joan-clode scoring review.",
+      "required": ["finalized", "finalized_by"],
+      "properties": {
+        "finalized": {
+          "type": "boolean",
+          "description": "Whether final assignment has been explicitly confirmed.",
+          "default": true
+        },
+        "finalized_by": {
+          "type": "string",
+          "description": "Singleton that finalized the assignment. Must be Jean-Claude for standard routing flow.",
+          "enum": ["Jean-Claude"],
+          "default": "Jean-Claude"
+        },
+        "accepted_deterministic": {
+          "type": "boolean",
+          "description": "True when Jean-Claude accepted the deterministic recommendation; false when overridden.",
+          "default": true
+        },
+        "scoring_source": {
+          "type": "string",
+          "description": "Scoring layer consulted during finalization.",
+          "enum": ["Joan-clode"],
+          "default": "Joan-clode"
+        },
+        "scoring_confidence": {
+          "type": ["string", "null"],
+          "description": "Confidence value carried from SAP scoring output.",
+          "enum": ["clear", "ambiguous", "unknown", null],
+          "default": null
+        },
+        "rationale": {
+          "type": ["string", "null"],
+          "description": "Short finalization note. Required when accepted_deterministic is false.",
+          "default": null
+        },
+        "finalized_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "ISO 8601 timestamp of finalization.",
+          "default": null
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "required": ["accepted_deterministic"],
+            "properties": {
+              "accepted_deterministic": { "const": false }
+            }
+          },
+          "then": {
+            "required": ["rationale"],
+            "properties": {
+              "rationale": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
     },
 
     "envelope_id": {
@@ -102,8 +197,19 @@
 
           "agent_id": {
             "type": "string",
-            "description": "Full Vibe-Responsibility name of the target agent.",
-            "examples": ["Cleed-FaultFinder", "Clad-FaultFinder", "Joan Claude"]
+            "description": "Target receiver name. Prefer Vibe-Responsibility format for composed work agents. Singleton and infrastructure receiver names are also valid.",
+            "examples": ["Cleed-FaultFinder", "Clad-FaultFinder", "Joan Claude"],
+            "oneOf": [
+              {
+                "pattern": "^[A-Za-z][A-Za-z0-9 ]*-[A-Za-z][A-Za-z0-9]*$"
+              },
+              {
+                "enum": ["Clyde", "Jean-Claude", "Joan Claude"]
+              },
+              {
+                "enum": ["signal-intake", "escalation-packager"]
+              }
+            ]
           },
 
           "execution": {

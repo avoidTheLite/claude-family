@@ -7,6 +7,16 @@
   "session_id": "session-flanders-morning-run",
   "authorization_level": "standard",
 
+  "routing_finalization": {
+    "finalized": true,
+    "finalized_by": "Jean-Claude",
+    "accepted_deterministic": true,
+    "scoring_source": "Joan-clode",
+    "scoring_confidence": "clear",
+    "rationale": "Deterministic mapping and Joan-clode scoring agree; dispatching paired FaultFinder vibes for complementary depth and speed.",
+    "finalized_at": "2026-03-30T07:42:10-05:00"
+  },
+
   "from": {
     "agent_id": "Jean-Claude",
     "role": "singleton",

@@ -31,6 +31,11 @@
 
   "urgency": "critical",
 
+  "responsibility_candidates": ["FaultFinder"],
+  "vibe_candidates": ["Cleed", "Clad"],
+  "llm_confidence": "clear",
+  "llm_reasoning": "Monitoring signal is specific and maps cleanly to fault diagnosis. Candidate vibe set balances depth (Cleed) and speed (Clad).",
+
   "approval": {
     "intent": {
       "mode": "none",

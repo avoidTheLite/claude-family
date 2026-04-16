@@ -12,6 +12,10 @@
     "received_at",
     "source",
     "payload",
+    "responsibility_candidates",
+    "vibe_candidates",
+    "llm_confidence",
+    "llm_reasoning",
     "approval"
   ],
 
@@ -152,6 +156,37 @@
       "enum": ["critical", "high", "normal", "low"],
       "description": "The urgency of this inbound signal. Drives default approval gate behavior across all steps in the resulting ARE envelope. critical and high: approval gates are non-blocking by default — the gate service is called but Jean-Claude does not wait for a response before proceeding, unless a specific step carries authorization_level: elevated or explicit. normal and low: approval gates are blocking by default. This field maps to task.priority in the resulting ARE envelope.",
       "default": "normal"
+    },
+
+
+    "responsibility_candidates": {
+      "type": "array",
+      "description": "Deterministic routing output: one or more responsibility candidates selected from routing rules using signal_type x product_id.",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "examples": [["FaultFinder"], ["FaultFinder", "TelemetryReader"]]
+    },
+
+
+    "vibe_candidates": {
+      "type": "array",
+      "description": "Candidate vibes proposed from roster defaults for the selected responsibilities. Jean-Claude confirms or overrides during finalization.",
+      "items": { "type": "string" },
+      "minItems": 1,
+      "examples": [["Cleed"], ["Clad", "Clide"]]
+    },
+
+
+    "llm_confidence": {
+      "type": "string",
+      "enum": ["clear", "ambiguous", "unknown"],
+      "description": "Advisory confidence score from Joan-clode over the deterministic routing result. This score informs Jean-Claude finalization and does not dispatch work by itself."
+    },
+
+
+    "llm_reasoning": {
+      "type": "string",
+      "description": "Short rationale from Joan-clode explaining confidence and risk factors in the deterministic assignment. This is a concise decision note, not chain-of-thought."
     },
 
 
